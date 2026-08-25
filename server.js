@@ -7,9 +7,9 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const ITEMS = ['a', 'b', 'c', 'd', 'e'];
-const AVAILABLE = '이용가능';
-const IN_USE = '이용중';
+const ITEMS = ['신부님', '선택수녀님', '차수수녀님', '큰부부님', '작은부부님'];
+const AVAILABLE = '상담가능';
+const IN_USE = '상담중';
 
 const items = Object.fromEntries(ITEMS.map((id) => [id, AVAILABLE]));
 
@@ -27,7 +27,7 @@ app.post('/api/items/:id/use', (req, res) => {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
   if (items[id] !== AVAILABLE) {
-    return res.status(400).json({ error: '이미 이용중입니다.', items });
+    return res.status(400).json({ error: '이미 상담중입니다.', items });
   }
   items[id] = IN_USE;
   res.json(items);
@@ -39,7 +39,7 @@ app.post('/api/items/:id/return', (req, res) => {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
   if (items[id] !== IN_USE) {
-    return res.status(400).json({ error: '이용중이 아닙니다.', items });
+    return res.status(400).json({ error: '상담중이 아닙니다.', items });
   }
   items[id] = AVAILABLE;
   res.json(items);

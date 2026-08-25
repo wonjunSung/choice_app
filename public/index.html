@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>이용 현황</title>
+  <title>상담 현황</title>
   <style>
     :root {
       --bg: #f3f6f4;
@@ -72,7 +72,6 @@
     .item-id {
       font-size: 1.25rem;
       font-weight: 700;
-      text-transform: uppercase;
     }
 
     .badge {
@@ -135,8 +134,8 @@
 </head>
 <body>
   <main>
-    <h1>이용 현황</h1>
-    <p class="sub">항목을 눌러 이용·반납하세요. 화면은 자동으로 갱신됩니다.</p>
+    <h1>상담 현황</h1>
+    <p class="sub">항목을 눌러 상담시작·상담완료하세요. 화면은 자동으로 갱신됩니다.</p>
     <div class="list" id="list"></div>
     <p class="error" id="error"></p>
     <p class="footer">상태 저장소: 서버 메모리 (재시작 시 초기화될 수 있음)</p>
@@ -150,7 +149,7 @@
     function render(items) {
       listEl.innerHTML = '';
       Object.entries(items).forEach(([id, status]) => {
-        const available = status === '이용가능';
+        const available = status === '상담가능';
         const row = document.createElement('div');
         row.className = 'item';
         row.innerHTML = `
@@ -159,7 +158,7 @@
             <span class="badge ${available ? 'available' : 'busy'}">${status}</span>
           </div>
           <button class="${available ? 'use' : 'return'}" data-id="${id}" data-action="${available ? 'use' : 'return'}">
-            ${available ? '이용' : '반납'}
+            ${available ? '상담시작' : '상담완료'}
           </button>
         `;
         listEl.appendChild(row);
@@ -182,7 +181,7 @@
       busy = true;
       errorEl.textContent = '';
       try {
-        const res = await fetch(`/api/items/${id}/${action}`, { method: 'POST' });
+        const res = await fetch(`/api/items/${encodeURIComponent(id)}/${action}`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) {
           errorEl.textContent = data.error || '요청에 실패했습니다.';

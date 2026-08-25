@@ -1,0 +1,16 @@
+{
+  "name": "rental-status",
+  "version": "1.0.0",
+  "description": "간단한 항목 이용/반납 상태판 (a~e)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>이용 현황</title>
+  <style>
+    :root {
+      --bg: #f3f6f4;
+      --card: #ffffff;
+      --text: #1a2e24;
+      --muted: #5f7368;
+      --available: #1f7a4c;
+      --available-bg: #e8f6ee;
+      --busy: #b45309;
+      --busy-bg: #fff4e5;
+      --border: #d5e0da;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background:
+        radial-gradient(circle at top left, #dff3e8, transparent 40%),
+        radial-gradient(circle at bottom right, #e8eef5, transparent 35%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    main {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 28px 16px 48px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.6rem;
+    }
+
+    .sub {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .item-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .item-id {
+      font-size: 1.25rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge {
+      display: inline-block;
+      width: fit-content;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .badge.available {
+      color: var(--available);
+      background: var(--available-bg);
+    }
+
+    .badge.busy {
+      color: var(--busy);
+      background: var(--busy-bg);
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      min-width: 88px;
+    }
+
+    button.use {
+      background: var(--available);
+      color: #fff;
+    }
+
+    button.return {
+      background: var(--busy);
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .error {
+      margin-top: 12px;
+      color: #b91c1c;
+      font-size: 0.9rem;
+      min-height: 1.2em;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>이용 현황</h1>
+    <p class="sub">항목을 눌러 이용·반납하세요. 화면은 자동으로 갱신됩니다.</p>
+    <div class="list" id="list"></div>
+    <p class="error" id="error"></p>
+    <p class="footer">상태 저장소: 서버 메모리 (재시작 시 초기화될 수 있음)</p>
+  </main>
+
+  <script>
+    const listEl = document.getElementById('list');
+    const errorEl = document.getElementById('error');
+    let busy = false;
+
+    function render(items) {
+      listEl.innerHTML = '';
+      Object.entries(items).forEach(([id, status]) => {
+        const available = status === '이용가능';
+        const row = document.createElement('div');
+        row.className = 'item';
+        row.innerHTML = `
+          <div class="item-meta">
+            <div class="item-id">${id}</div>
+            <span class="badge ${available ? 'available' : 'busy'}">${status}</span>
+          </div>
+          <button class="${available ? 'use' : 'return'}" data-id="${id}" data-action="${available ? 'use' : 'return'}">
+            ${available ? '이용' : '반납'}
+          </button>
+        `;
+        listEl.appendChild(row);
+      });
+    }
+
+    async function load() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        render(data);
+        errorEl.textContent = '';
+      } catch (e) {
+        errorEl.textContent = '상태를 불러오지 못했습니다.';
+      }
+    }
+
+    async function act(id, action) {
+      if (busy) return;
+      busy = true;
+      errorEl.textContent = '';
+      try {
+        const res = await fetch(`/api/items/${id}/${action}`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = data.error || '요청에 실패했습니다.';
+          if (data.items) render(data.items);
+          return;
+        }
+        render(data);
+      } catch (e) {
+        errorEl.textContent = '요청에 실패했습니다.';
+      } finally {
+        busy = false;
+      }
+    }
+
+    listEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-id]');
+      if (!btn) return;
+      act(btn.dataset.id, btn.dataset.action);
+    });
+
+    load();
+    setInterval(load, 2000);
+  </script>
+</body>
+</html>

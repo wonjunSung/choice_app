@@ -145,6 +145,23 @@
     const listEl = document.getElementById('list');
     const errorEl = document.getElementById('error');
     let busy = false;
+    let prevItems = null;
+
+    function vibrateOnComplete(nextItems) {
+      if (!prevItems || !nextItems) return;
+      const completed = Object.keys(nextItems).some(
+        (id) => prevItems[id] === '상담중' && nextItems[id] === '상담가능'
+      );
+      if (completed && navigator.vibrate) {
+        navigator.vibrate(200);
+      }
+    }
+
+    function applyItems(items) {
+      vibrateOnComplete(items);
+      prevItems = { ...items };
+      render(items);
+    }
 
     function render(items) {
       listEl.innerHTML = '';
@@ -169,7 +186,7 @@
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
-        render(data);
+        applyItems(data);
         errorEl.textContent = '';
       } catch (e) {
         errorEl.textContent = '상태를 불러오지 못했습니다.';
@@ -185,10 +202,10 @@
         const data = await res.json();
         if (!res.ok) {
           errorEl.textContent = data.error || '요청에 실패했습니다.';
-          if (data.items) render(data.items);
+          if (data.items) applyItems(data.items);
           return;
         }
-        render(data);
+        applyItems(data);
       } catch (e) {
         errorEl.textContent = '요청에 실패했습니다.';
       } finally {

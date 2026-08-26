@@ -445,8 +445,16 @@
         return;
       }
       if (action === 'memo-reset') {
+        if (!confirm('메모를 리셋하시겠습니까?')) return;
         act(id, 'memo/reset');
         return;
+      }
+      if (action === 'return') {
+        const item = state?.items?.[id];
+        const message = item?.showTimer
+          ? '상담완료를 하시겠습니까?'
+          : '고해완료를 하시겠습니까?';
+        if (!confirm(message)) return;
       }
       act(id, action);
     });

@@ -6,16 +6,22 @@
   <title>상담 현황</title>
   <style>
     :root {
-      --bg: #f3f6f4;
-      --card: #ffffff;
-      --text: #1a2e24;
-      --muted: #5f7368;
-      --available: #1f7a4c;
-      --available-bg: #e8f6ee;
-      --busy: #b45309;
-      --busy-bg: #fff4e5;
-      --border: #d5e0da;
-      --reset: #64748b;
+      --bg: #0f1412;
+      --bg-accent-1: #163528;
+      --bg-accent-2: #1a2433;
+      --card: #1a2220;
+      --text: #e8eee9;
+      --muted: #9aada3;
+      --available: #3ecf8e;
+      --available-bg: #1a3d2e;
+      --busy: #f0a35a;
+      --busy-bg: #3d2a16;
+      --border: #2d3a34;
+      --reset: #6b7c8a;
+      --memo-bg: #141b19;
+      --input-bg: #121816;
+      --count-btn: #2a3530;
+      --focus: #2f6b4f;
     }
 
     * { box-sizing: border-box; }
@@ -24,8 +30,8 @@
       margin: 0;
       font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
       background:
-        radial-gradient(circle at top left, #dff3e8, transparent 40%),
-        radial-gradient(circle at bottom right, #e8eef5, transparent 35%),
+        radial-gradient(circle at top left, var(--bg-accent-1), transparent 42%),
+        radial-gradient(circle at bottom right, var(--bg-accent-2), transparent 38%),
         var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -99,7 +105,7 @@
 
     .stats {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       justify-content: space-between;
       gap: 8px;
       min-height: 1.2em;
@@ -111,14 +117,42 @@
     .stats .elapsed {
       font-weight: 700;
       color: var(--busy);
+      flex-shrink: 0;
     }
 
-    .stats .count {
+    .count-box {
       margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .count-box .count {
       font-weight: 600;
       color: var(--text);
       text-align: right;
       white-space: nowrap;
+      font-size: 0.82rem;
+    }
+
+    .count-controls {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    button.count-btn {
+      width: 28px;
+      min-width: 28px;
+      padding: 0;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--count-btn);
+      color: var(--text);
+      font-size: 1rem;
+      line-height: 1;
+      border: 1px solid var(--border);
     }
 
     .memo {
@@ -135,11 +169,11 @@
       font-size: 0.85rem;
       font-family: inherit;
       color: var(--text);
-      background: #fff;
+      background: var(--input-bg);
     }
 
     .memo-input:focus {
-      outline: 2px solid #c7e6d4;
+      outline: 2px solid var(--focus);
       border-color: var(--available);
     }
 
@@ -147,7 +181,7 @@
       font-size: 0.85rem;
       line-height: 1.4;
       word-break: break-word;
-      background: #f7faf8;
+      background: var(--memo-bg);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 8px 10px;
@@ -175,16 +209,16 @@
 
     button.use {
       background: var(--available);
-      color: #fff;
+      color: #0b1a12;
     }
 
     button.return {
       background: var(--busy);
-      color: #fff;
+      color: #1a1208;
     }
 
     button.memo-save {
-      background: #2563eb;
+      background: #3b82f6;
       color: #fff;
     }
 
@@ -206,7 +240,7 @@
 
     .error {
       margin-top: 12px;
-      color: #b91c1c;
+      color: #f87171;
       font-size: 0.9rem;
       min-height: 1.2em;
     }
@@ -218,6 +252,16 @@
 
       .item-id {
         font-size: 0.95rem;
+      }
+
+      .stats {
+        flex-wrap: wrap;
+      }
+
+      .count-box {
+        margin-left: 0;
+        width: 100%;
+        justify-content: space-between;
       }
     }
   </style>
@@ -315,18 +359,24 @@
           const available = isAvailable(item.status);
           const card = document.createElement('div');
           card.className = 'item';
+          const countLabel = item.showTimer ? '상담완료' : '고해완료';
 
-          let statsHtml = '';
-          if (item.showTimer) {
-            const parts = [];
-            if (!available && item.startedAt) {
-              parts.push(
-                `<span class="elapsed" data-elapsed-id="${escapeHtml(id)}">${formatElapsed(now - item.startedAt)}</span>`
-              );
-            }
-            parts.push(`<span class="count">상담완료 : ${item.count}명</span>`);
-            statsHtml = `<div class="stats">${parts.join('')}</div>`;
+          const parts = [];
+          if (item.showTimer && !available && item.startedAt) {
+            parts.push(
+              `<span class="elapsed" data-elapsed-id="${escapeHtml(id)}">${formatElapsed(now - item.startedAt)}</span>`
+            );
           }
+          parts.push(`
+            <div class="count-box">
+              <span class="count">${countLabel} : ${item.count}명</span>
+              <div class="count-controls">
+                <button type="button" class="count-btn" data-id="${escapeHtml(id)}" data-action="count-down" aria-label="인원 감소">−</button>
+                <button type="button" class="count-btn" data-id="${escapeHtml(id)}" data-action="count-up" aria-label="인원 증가">+</button>
+              </div>
+            </div>
+          `);
+          const statsHtml = `<div class="stats">${parts.join('')}</div>`;
 
           const startLabel = item.showTimer ? '상담시작' : '고해시작';
           const endLabel = item.showTimer ? '상담완료' : '고해완료';
@@ -447,6 +497,14 @@
       if (action === 'memo-reset') {
         if (!confirm('메모를 리셋하시겠습니까?')) return;
         act(id, 'memo/reset');
+        return;
+      }
+      if (action === 'count-up') {
+        act(id, 'count', { delta: 1 });
+        return;
+      }
+      if (action === 'count-down') {
+        act(id, 'count', { delta: -1 });
         return;
       }
       if (action === 'return') {

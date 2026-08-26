@@ -78,9 +78,24 @@ app.post('/api/items/:id/return', (req, res) => {
   }
   item.status = available;
   item.startedAt = null;
-  if (item.showTimer) {
-    item.count += 1;
+  item.count += 1;
+  res.json(snapshot());
+});
+
+app.post('/api/items/:id/count', (req, res) => {
+  const { id } = req.params;
+  if (!ensureItem(id)) {
+    return res.status(404).json({ error: '항목이 없습니다.' });
   }
+  const delta = Number(req.body?.delta);
+  if (delta !== 1 && delta !== -1) {
+    return res.status(400).json({ error: '인원은 +1 또는 -1만 가능합니다.', ...snapshot() });
+  }
+  const next = items[id].count + delta;
+  if (next < 0) {
+    return res.status(400).json({ error: '인원은 0명 미만으로 줄일 수 없습니다.', ...snapshot() });
+  }
+  items[id].count = next;
   res.json(snapshot());
 });
 

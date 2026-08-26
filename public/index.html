@@ -361,7 +361,7 @@
           const countLabel = item.showTimer ? '상담완료' : '고해완료';
 
           let elapsedHtml = '';
-          if (item.showTimer && !available && item.startedAt) {
+          if (!available && item.startedAt) {
             elapsedHtml = `<span class="elapsed" data-elapsed-id="${escapeHtml(id)}">${formatElapsed(now - item.startedAt)}</span>`;
           }
 
@@ -502,10 +502,12 @@
         return;
       }
       if (action === 'count-up') {
+        if (!confirm('인원 추가를 하시겠습니까?')) return;
         act(id, 'count', { delta: 1 });
         return;
       }
       if (action === 'count-down') {
+        if (!confirm('인원 차감을 하시겠습니까?')) return;
         act(id, 'count', { delta: -1 });
         return;
       }

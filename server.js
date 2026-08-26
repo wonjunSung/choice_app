@@ -62,7 +62,7 @@ app.post('/api/items/:id/use', (req, res) => {
     return res.status(400).json({ error: '이미 이용중입니다.', ...snapshot() });
   }
   item.status = inUse;
-  item.startedAt = item.showTimer ? Date.now() : null;
+  item.startedAt = Date.now();
   res.json(snapshot());
 });
 

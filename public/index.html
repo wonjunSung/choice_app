@@ -84,6 +84,13 @@
       word-break: keep-all;
     }
 
+    .badge-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
     .badge {
       display: inline-block;
       width: fit-content;
@@ -103,10 +110,19 @@
       background: var(--busy-bg);
     }
 
+    .elapsed {
+      margin-left: auto;
+      font-weight: 700;
+      color: var(--busy);
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
     .stats {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 8px;
       min-height: 1.2em;
       color: var(--muted);
@@ -114,14 +130,7 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .stats .elapsed {
-      font-weight: 700;
-      color: var(--busy);
-      flex-shrink: 0;
-    }
-
     .count-box {
-      margin-left: auto;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -253,16 +262,6 @@
       .item-id {
         font-size: 0.95rem;
       }
-
-      .stats {
-        flex-wrap: wrap;
-      }
-
-      .count-box {
-        margin-left: 0;
-        width: 100%;
-        justify-content: space-between;
-      }
     }
   </style>
 </head>
@@ -361,22 +360,22 @@
           card.className = 'item';
           const countLabel = item.showTimer ? '상담완료' : '고해완료';
 
-          const parts = [];
+          let elapsedHtml = '';
           if (item.showTimer && !available && item.startedAt) {
-            parts.push(
-              `<span class="elapsed" data-elapsed-id="${escapeHtml(id)}">${formatElapsed(now - item.startedAt)}</span>`
-            );
+            elapsedHtml = `<span class="elapsed" data-elapsed-id="${escapeHtml(id)}">${formatElapsed(now - item.startedAt)}</span>`;
           }
-          parts.push(`
-            <div class="count-box">
-              <span class="count">${countLabel} : ${item.count}명</span>
-              <div class="count-controls">
-                <button type="button" class="count-btn" data-id="${escapeHtml(id)}" data-action="count-down" aria-label="인원 감소">−</button>
-                <button type="button" class="count-btn" data-id="${escapeHtml(id)}" data-action="count-up" aria-label="인원 증가">+</button>
+
+          const statsHtml = `
+            <div class="stats">
+              <div class="count-box">
+                <span class="count">${countLabel} : ${item.count}명</span>
+                <div class="count-controls">
+                  <button type="button" class="count-btn" data-id="${escapeHtml(id)}" data-action="count-down" aria-label="인원 감소">−</button>
+                  <button type="button" class="count-btn" data-id="${escapeHtml(id)}" data-action="count-up" aria-label="인원 증가">+</button>
+                </div>
               </div>
             </div>
-          `);
-          const statsHtml = `<div class="stats">${parts.join('')}</div>`;
+          `;
 
           const startLabel = item.showTimer ? '상담시작' : '고해시작';
           const endLabel = item.showTimer ? '상담완료' : '고해완료';
@@ -413,7 +412,10 @@
 
           card.innerHTML = `
             <div class="item-id">${escapeHtml(id)}</div>
-            <span class="badge ${available ? 'available' : 'busy'}">${escapeHtml(item.status)}</span>
+            <div class="badge-row">
+              <span class="badge ${available ? 'available' : 'busy'}">${escapeHtml(item.status)}</span>
+              ${elapsedHtml}
+            </div>
             ${statsHtml}
             ${memoHtml}
             <div class="item-actions">

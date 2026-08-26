@@ -7,18 +7,39 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const ITEMS = ['신부님', '선택수녀님', '차수수녀님', '큰부부님', '작은부부님'];
 const AVAILABLE = '상담가능';
 const IN_USE = '상담중';
 
-const items = Object.fromEntries(ITEMS.map((id) => [id, AVAILABLE]));
+const ROWS = [
+  ['차수신부님', '선택신부님', '고해1', '고해2'],
+  ['차수수녀님', '선택수녀님', '큰부부님', '작은부부님'],
+];
+
+const NO_TIMER = new Set(['고해1', '고해2']);
+const ITEMS = ROWS.flat();
+
+const items = Object.fromEntries(
+  ITEMS.map((id) => [
+    id,
+    {
+      status: AVAILABLE,
+      startedAt: null,
+      count: 0,
+      showTimer: !NO_TIMER.has(id),
+    },
+  ])
+);
 
 function ensureItem(id) {
-  return ITEMS.includes(id);
+  return Object.prototype.hasOwnProperty.call(items, id);
+}
+
+function snapshot() {
+  return { rows: ROWS, items };
 }
 
 app.get('/api/status', (_req, res) => {
-  res.json(items);
+  res.json(snapshot());
 });
 
 app.post('/api/items/:id/use', (req, res) => {
@@ -26,11 +47,13 @@ app.post('/api/items/:id/use', (req, res) => {
   if (!ensureItem(id)) {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
-  if (items[id] !== AVAILABLE) {
-    return res.status(400).json({ error: '이미 상담중입니다.', items });
+  const item = items[id];
+  if (item.status !== AVAILABLE) {
+    return res.status(400).json({ error: '이미 상담중입니다.', ...snapshot() });
   }
-  items[id] = IN_USE;
-  res.json(items);
+  item.status = IN_USE;
+  item.startedAt = item.showTimer ? Date.now() : null;
+  res.json(snapshot());
 });
 
 app.post('/api/items/:id/return', (req, res) => {
@@ -38,11 +61,16 @@ app.post('/api/items/:id/return', (req, res) => {
   if (!ensureItem(id)) {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
-  if (items[id] !== IN_USE) {
-    return res.status(400).json({ error: '상담중이 아닙니다.', items });
+  const item = items[id];
+  if (item.status !== IN_USE) {
+    return res.status(400).json({ error: '상담중이 아닙니다.', ...snapshot() });
   }
-  items[id] = AVAILABLE;
-  res.json(items);
+  item.status = AVAILABLE;
+  item.startedAt = null;
+  if (item.showTimer) {
+    item.count += 1;
+  }
+  res.json(snapshot());
 });
 
 app.get('*', (_req, res) => {

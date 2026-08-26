@@ -99,6 +99,7 @@
     .stats {
       display: flex;
       align-items: baseline;
+      justify-content: space-between;
       gap: 8px;
       min-height: 1.2em;
       color: var(--muted);
@@ -112,8 +113,11 @@
     }
 
     .stats .count {
+      margin-left: auto;
       font-weight: 600;
       color: var(--text);
+      text-align: right;
+      white-space: nowrap;
     }
 
     .item-actions {
@@ -243,9 +247,12 @@
             if (!available && item.startedAt) {
               parts.push(`<span class="elapsed">${formatElapsed(now - item.startedAt)}</span>`);
             }
-            parts.push(`<span class="count">${item.count}명</span>`);
+            parts.push(`<span class="count">상담완료 : ${item.count}명</span>`);
             statsHtml = `<div class="stats">${parts.join('')}</div>`;
           }
+
+          const startLabel = item.showTimer ? '상담시작' : '고해시작';
+          const endLabel = item.showTimer ? '상담완료' : '고해완료';
 
           card.innerHTML = `
             <div class="item-id">${id}</div>
@@ -253,7 +260,7 @@
             ${statsHtml}
             <div class="item-actions">
               <button class="${available ? 'use' : 'return'}" data-id="${id}" data-action="${available ? 'use' : 'return'}">
-                ${available ? '상담시작' : '상담완료'}
+                ${available ? startLabel : endLabel}
               </button>
             </div>
           `;

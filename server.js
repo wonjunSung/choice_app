@@ -3,12 +3,10 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const MEMO_MAX = 100;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-const AVAILABLE = '상담가능';
-const IN_USE = '상담중';
 
 const ROWS = [
   ['차수신부님', '선택신부님', '고해1', '고해2'],
@@ -18,16 +16,27 @@ const ROWS = [
 const NO_TIMER = new Set(['고해1', '고해2']);
 const ITEMS = ROWS.flat();
 
+function labels(showTimer) {
+  return showTimer
+    ? { available: '상담가능', inUse: '상담중' }
+    : { available: '고해가능', inUse: '고해중' };
+}
+
 const items = Object.fromEntries(
-  ITEMS.map((id) => [
-    id,
-    {
-      status: AVAILABLE,
-      startedAt: null,
-      count: 0,
-      showTimer: !NO_TIMER.has(id),
-    },
-  ])
+  ITEMS.map((id) => {
+    const showTimer = !NO_TIMER.has(id);
+    const { available } = labels(showTimer);
+    return [
+      id,
+      {
+        status: available,
+        startedAt: null,
+        count: 0,
+        showTimer,
+        memo: '',
+      },
+    ];
+  })
 );
 
 function ensureItem(id) {
@@ -35,7 +44,7 @@ function ensureItem(id) {
 }
 
 function snapshot() {
-  return { rows: ROWS, items };
+  return { rows: ROWS, items, memoMax: MEMO_MAX };
 }
 
 app.get('/api/status', (_req, res) => {
@@ -48,10 +57,11 @@ app.post('/api/items/:id/use', (req, res) => {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
   const item = items[id];
-  if (item.status !== AVAILABLE) {
-    return res.status(400).json({ error: '이미 상담중입니다.', ...snapshot() });
+  const { available, inUse } = labels(item.showTimer);
+  if (item.status !== available) {
+    return res.status(400).json({ error: '이미 이용중입니다.', ...snapshot() });
   }
-  item.status = IN_USE;
+  item.status = inUse;
   item.startedAt = item.showTimer ? Date.now() : null;
   res.json(snapshot());
 });
@@ -62,14 +72,40 @@ app.post('/api/items/:id/return', (req, res) => {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
   const item = items[id];
-  if (item.status !== IN_USE) {
-    return res.status(400).json({ error: '상담중이 아닙니다.', ...snapshot() });
+  const { available, inUse } = labels(item.showTimer);
+  if (item.status !== inUse) {
+    return res.status(400).json({ error: '이용중이 아닙니다.', ...snapshot() });
   }
-  item.status = AVAILABLE;
+  item.status = available;
   item.startedAt = null;
   if (item.showTimer) {
     item.count += 1;
   }
+  res.json(snapshot());
+});
+
+app.post('/api/items/:id/memo', (req, res) => {
+  const { id } = req.params;
+  if (!ensureItem(id)) {
+    return res.status(404).json({ error: '항목이 없습니다.' });
+  }
+  const text = String(req.body?.text ?? '').trim();
+  if (!text) {
+    return res.status(400).json({ error: '메모 내용을 입력해 주세요.', ...snapshot() });
+  }
+  if (text.length > MEMO_MAX) {
+    return res.status(400).json({ error: `메모는 ${MEMO_MAX}자까지 가능합니다.`, ...snapshot() });
+  }
+  items[id].memo = text;
+  res.json(snapshot());
+});
+
+app.post('/api/items/:id/memo/reset', (req, res) => {
+  const { id } = req.params;
+  if (!ensureItem(id)) {
+    return res.status(404).json({ error: '항목이 없습니다.' });
+  }
+  items[id].memo = '';
   res.json(snapshot());
 });
 

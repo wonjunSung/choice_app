@@ -15,6 +15,7 @@
       --busy: #b45309;
       --busy-bg: #fff4e5;
       --border: #d5e0da;
+      --reset: #64748b;
     }
 
     * { box-sizing: border-box; }
@@ -67,7 +68,7 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      min-height: 140px;
+      min-height: 180px;
     }
 
     .item-id {
@@ -120,6 +121,44 @@
       white-space: nowrap;
     }
 
+    .memo {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .memo-input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      color: var(--text);
+      background: #fff;
+    }
+
+    .memo-input:focus {
+      outline: 2px solid #c7e6d4;
+      border-color: var(--available);
+    }
+
+    .memo-text {
+      font-size: 0.85rem;
+      line-height: 1.4;
+      word-break: break-word;
+      background: #f7faf8;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      min-height: 38px;
+    }
+
+    .memo-actions {
+      display: flex;
+      gap: 6px;
+    }
+
     .item-actions {
       margin-top: auto;
     }
@@ -141,6 +180,16 @@
 
     button.return {
       background: var(--busy);
+      color: #fff;
+    }
+
+    button.memo-save {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    button.memo-reset {
+      background: var(--reset);
       color: #fff;
     }
 
@@ -179,7 +228,7 @@
     <p class="sub">항목을 눌러 상담시작·상담완료하세요. 화면은 자동으로 갱신됩니다.</p>
     <div class="rows" id="list"></div>
     <p class="error" id="error"></p>
-    <p class="footer">상태 저장소: 서버 메모리 (재시작 시 초기화될 수 있음)</p>
+    <p class="footer">상태 저장소: 서버 메모리 (재시작 시 초기화될 수 있음) · 메모 최대 100자</p>
   </main>
 
   <script>
@@ -188,6 +237,24 @@
     let busy = false;
     let prevStatuses = null;
     let state = null;
+    const draftMemos = {};
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function isAvailable(status) {
+      return status === '상담가능' || status === '고해가능';
+    }
+
+    function isBusyStatus(status) {
+      return status === '상담중' || status === '고해중';
+    }
 
     function formatElapsed(ms) {
       const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -205,7 +272,7 @@
       const completed = Object.keys(nextItems).some((id) => {
         const prev = prevStatuses[id];
         const next = nextItems[id]?.status;
-        return prev === '상담중' && next === '상담가능';
+        return isBusyStatus(prev) && isAvailable(next);
       });
       if (completed && navigator.vibrate) {
         navigator.vibrate(200);
@@ -228,6 +295,14 @@
     function render() {
       if (!state) return;
       const now = Date.now();
+      const memoMax = state.memoMax || 100;
+      const active = document.activeElement;
+      const focusedMemoId =
+        active && active.classList.contains('memo-input')
+          ? active.getAttribute('data-id')
+          : null;
+      const focusedValue = focusedMemoId ? active.value : null;
+
       listEl.innerHTML = '';
 
       state.rows.forEach((rowIds) => {
@@ -237,7 +312,7 @@
         rowIds.forEach((id) => {
           const item = state.items[id];
           if (!item) return;
-          const available = item.status === '상담가능';
+          const available = isAvailable(item.status);
           const card = document.createElement('div');
           card.className = 'item';
 
@@ -245,7 +320,9 @@
           if (item.showTimer) {
             const parts = [];
             if (!available && item.startedAt) {
-              parts.push(`<span class="elapsed">${formatElapsed(now - item.startedAt)}</span>`);
+              parts.push(
+                `<span class="elapsed" data-elapsed-id="${escapeHtml(id)}">${formatElapsed(now - item.startedAt)}</span>`
+              );
             }
             parts.push(`<span class="count">상담완료 : ${item.count}명</span>`);
             statsHtml = `<div class="stats">${parts.join('')}</div>`;
@@ -253,13 +330,44 @@
 
           const startLabel = item.showTimer ? '상담시작' : '고해시작';
           const endLabel = item.showTimer ? '상담완료' : '고해완료';
+          const hasMemo = Boolean(item.memo && item.memo.trim());
+
+          let memoHtml = '';
+          if (hasMemo) {
+            memoHtml = `
+              <div class="memo">
+                <div class="memo-text">${escapeHtml(item.memo)}</div>
+                <div class="memo-actions">
+                  <button type="button" class="memo-reset" data-id="${escapeHtml(id)}" data-action="memo-reset">리셋</button>
+                </div>
+              </div>
+            `;
+          } else {
+            const draft = focusedMemoId === id ? focusedValue : (draftMemos[id] ?? '');
+            memoHtml = `
+              <div class="memo">
+                <input
+                  class="memo-input"
+                  type="text"
+                  maxlength="${memoMax}"
+                  placeholder="메모 ${memoMax}자"
+                  data-id="${escapeHtml(id)}"
+                  value="${escapeHtml(draft)}"
+                />
+                <div class="memo-actions">
+                  <button type="button" class="memo-save" data-id="${escapeHtml(id)}" data-action="memo-save">입력완료</button>
+                </div>
+              </div>
+            `;
+          }
 
           card.innerHTML = `
-            <div class="item-id">${id}</div>
-            <span class="badge ${available ? 'available' : 'busy'}">${item.status}</span>
+            <div class="item-id">${escapeHtml(id)}</div>
+            <span class="badge ${available ? 'available' : 'busy'}">${escapeHtml(item.status)}</span>
             ${statsHtml}
+            ${memoHtml}
             <div class="item-actions">
-              <button class="${available ? 'use' : 'return'}" data-id="${id}" data-action="${available ? 'use' : 'return'}">
+              <button type="button" class="${available ? 'use' : 'return'}" data-id="${escapeHtml(id)}" data-action="${available ? 'use' : 'return'}">
                 ${available ? startLabel : endLabel}
               </button>
             </div>
@@ -269,6 +377,15 @@
 
         listEl.appendChild(rowEl);
       });
+
+      if (focusedMemoId) {
+        const input = listEl.querySelector(`.memo-input[data-id="${CSS.escape(focusedMemoId)}"]`);
+        if (input) {
+          input.focus();
+          const len = input.value.length;
+          input.setSelectionRange(len, len);
+        }
+      }
     }
 
     async function load() {
@@ -282,17 +399,24 @@
       }
     }
 
-    async function act(id, action) {
+    async function act(id, action, body) {
       if (busy) return;
       busy = true;
       errorEl.textContent = '';
       try {
-        const res = await fetch(`/api/items/${encodeURIComponent(id)}/${action}`, { method: 'POST' });
+        const res = await fetch(`/api/items/${encodeURIComponent(id)}/${action}`, {
+          method: 'POST',
+          headers: body ? { 'Content-Type': 'application/json' } : undefined,
+          body: body ? JSON.stringify(body) : undefined,
+        });
         const data = await res.json();
         if (!res.ok) {
           errorEl.textContent = data.error || '요청에 실패했습니다.';
           if (data.items) applyState(data);
           return;
+        }
+        if (action === 'memo' || action === 'memo/reset') {
+          delete draftMemos[id];
         }
         applyState(data);
       } catch (e) {
@@ -302,20 +426,42 @@
       }
     }
 
+    listEl.addEventListener('input', (e) => {
+      const input = e.target.closest('.memo-input');
+      if (!input) return;
+      draftMemos[input.dataset.id] = input.value;
+    });
+
     listEl.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-id]');
+      const btn = e.target.closest('button[data-id][data-action]');
       if (!btn) return;
-      act(btn.dataset.id, btn.dataset.action);
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+
+      if (action === 'memo-save') {
+        const input = listEl.querySelector(`.memo-input[data-id="${CSS.escape(id)}"]`);
+        const text = (input?.value ?? draftMemos[id] ?? '').trim();
+        act(id, 'memo', { text });
+        return;
+      }
+      if (action === 'memo-reset') {
+        act(id, 'memo/reset');
+        return;
+      }
+      act(id, action);
     });
 
     load();
     setInterval(load, 2000);
     setInterval(() => {
       if (!state) return;
-      const running = Object.values(state.items).some(
-        (item) => item.showTimer && item.status === '상담중' && item.startedAt
-      );
-      if (running) render();
+      const now = Date.now();
+      document.querySelectorAll('[data-elapsed-id]').forEach((el) => {
+        const item = state.items[el.dataset.elapsedId];
+        if (item?.startedAt && isBusyStatus(item.status)) {
+          el.textContent = formatElapsed(now - item.startedAt);
+        }
+      });
     }, 1000);
   </script>
 </body>

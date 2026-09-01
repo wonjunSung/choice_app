@@ -299,13 +299,9 @@
       color: #1a1208;
     }
 
-    button.memo-save {
+    button.memo-save,
+    button.memo-edit {
       background: #3b82f6;
-      color: #fff;
-    }
-
-    button.memo-reset {
-      background: var(--reset);
       color: #fff;
     }
 
@@ -361,6 +357,7 @@
     const draftMemos = {};
     const draftNames = {};
     const editingNames = new Set();
+    const editingMemos = new Set();
 
     function escapeHtml(text) {
       return String(text)
@@ -436,6 +433,10 @@
         draftNames[id] = value;
       }
       return value;
+    }
+
+    function hasSavedMemo(item) {
+      return Boolean(item.memo && item.memo.trim());
     }
 
     function readMemoValue(id, input) {
@@ -533,19 +534,21 @@
             </div>
           `;
 
-          const hasMemo = Boolean(item.memo && item.memo.trim());
+          const hasMemo = hasSavedMemo(item);
+          const isEditingMemo = editingMemos.has(id) || !hasMemo;
+          const memoButtonLabel = hasMemo ? '메모변경' : '메모입력';
           let memoHtml = '';
-          if (hasMemo) {
+          if (hasMemo && !isEditingMemo) {
             memoHtml = `
               <div class="memo">
                 <div class="memo-text">${escapeHtml(item.memo)}</div>
                 <div class="memo-actions">
-                  <button type="button" class="memo-reset" data-id="${escapeHtml(id)}" data-action="memo-reset">메모리셋</button>
+                  <button type="button" class="memo-edit" data-id="${escapeHtml(id)}" data-action="memo-edit">메모변경</button>
                 </div>
               </div>
             `;
           } else {
-            const draft = focusedMemoId === id ? focusedMemoValue : (draftMemos[id] ?? '');
+            const draft = focusedMemoId === id ? focusedMemoValue : (draftMemos[id] ?? item.memo);
             memoHtml = `
               <div class="memo">
                 <input
@@ -557,7 +560,7 @@
                   value="${escapeHtml(draft)}"
                 />
                 <div class="memo-actions">
-                  <button type="button" class="memo-save" data-id="${escapeHtml(id)}" data-action="memo-save">메모입력</button>
+                  <button type="button" class="memo-save" data-id="${escapeHtml(id)}" data-action="memo-save">${memoButtonLabel}</button>
                 </div>
               </div>
             `;
@@ -627,8 +630,13 @@
           if (data.items) applyState(data);
           return;
         }
-        if (action === 'memo' || action === 'memo/reset') {
+        if (action === 'memo') {
           delete draftMemos[id];
+          editingMemos.delete(id);
+        }
+        if (action === 'memo/reset') {
+          delete draftMemos[id];
+          editingMemos.delete(id);
         }
         if (action === 'name') {
           delete draftNames[id];
@@ -713,6 +721,11 @@
         act(id, 'name', { name }, { hadName });
         return;
       }
+      if (action === 'memo-edit') {
+        editingMemos.add(id);
+        render();
+        return;
+      }
       if (action === 'memo-save') {
         const input = getMemoInputForButton(btn);
         const text = readMemoValue(id, input);
@@ -721,11 +734,6 @@
           return;
         }
         act(id, 'memo', { text });
-        return;
-      }
-      if (action === 'memo-reset') {
-        if (!confirm('메모를 리셋하시겠습니까?')) return;
-        act(id, 'memo/reset');
         return;
       }
       if (action === 'count-up') {

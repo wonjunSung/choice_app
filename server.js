@@ -25,28 +25,21 @@ const DEFAULT_NAMES = {
 const CONFESSION_IDS = new Set(['r1-3', 'r1-4']);
 const ITEMS = ROWS.flat();
 
-function labels(isConfession) {
-  return isConfession
-    ? { available: '고해가능', inUse: '고해중' }
-    : { available: '상담가능', inUse: '상담중' };
-}
+const AVAILABLE = '상담가능';
+const IN_USE = '상담중';
 
 const items = Object.fromEntries(
-  ITEMS.map((id) => {
-    const isConfession = CONFESSION_IDS.has(id);
-    const { available } = labels(isConfession);
-    return [
-      id,
-      {
-        name: DEFAULT_NAMES[id],
-        status: available,
-        startedAt: null,
-        count: 0,
-        isConfession,
-        memo: '',
-      },
-    ];
-  })
+  ITEMS.map((id) => [
+    id,
+    {
+      name: DEFAULT_NAMES[id],
+      status: AVAILABLE,
+      startedAt: null,
+      count: 0,
+      isConfession: CONFESSION_IDS.has(id),
+      memo: '',
+    },
+  ])
 );
 
 function ensureItem(id) {
@@ -71,11 +64,10 @@ app.post('/api/items/:id/use', (req, res) => {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
   const item = items[id];
-  const { available, inUse } = labels(item.isConfession);
-  if (item.status !== available) {
+  if (item.status !== AVAILABLE) {
     return res.status(400).json({ error: '이미 이용중입니다.', ...snapshot() });
   }
-  item.status = inUse;
+  item.status = IN_USE;
   item.startedAt = Date.now();
   res.json(snapshot());
 });
@@ -86,11 +78,10 @@ app.post('/api/items/:id/return', (req, res) => {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
   const item = items[id];
-  const { available, inUse } = labels(item.isConfession);
-  if (item.status !== inUse) {
+  if (item.status !== IN_USE) {
     return res.status(400).json({ error: '이용중이 아닙니다.', ...snapshot() });
   }
-  item.status = available;
+  item.status = AVAILABLE;
   item.startedAt = null;
   item.count += 1;
   res.json(snapshot());

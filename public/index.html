@@ -347,11 +347,11 @@
     }
 
     function isAvailable(status) {
-      return status === '상담가능' || status === '고해가능';
+      return status === '상담가능';
     }
 
     function isBusyStatus(status) {
-      return status === '상담중' || status === '고해중';
+      return status === '상담중';
     }
 
     function formatElapsed(ms) {

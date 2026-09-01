@@ -8,6 +8,9 @@ const MEMO_MAX = 100;
 const NAME_MAX = 30;
 const DATA_FILE = path.join(__dirname, 'data.json');
 
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
 const ROWS = [
   ['r1-1', 'r1-2', 'r1-3', 'r1-4'],
   ['r2-1', 'r2-2', 'r2-3', 'r2-4'],

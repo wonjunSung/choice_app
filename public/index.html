@@ -392,10 +392,27 @@
       return btn.closest('.name-row')?.querySelector('.name-input') ?? null;
     }
 
+    function getMemoInputForButton(btn) {
+      return btn.closest('.memo')?.querySelector('.memo-input') ?? null;
+    }
+
+    function syncMemoDraft(input) {
+      if (!input) return;
+      draftMemos[input.dataset.id] = input.value;
+    }
+
     function readNameValue(id, input) {
       const value = (input?.value ?? draftNames[id] ?? '').trim();
       if (value) {
         draftNames[id] = value;
+      }
+      return value;
+    }
+
+    function readMemoValue(id, input) {
+      const value = (input?.value ?? draftMemos[id] ?? '').trim();
+      if (value) {
+        draftMemos[id] = value;
       }
       return value;
     }
@@ -576,7 +593,7 @@
     listEl.addEventListener('input', (e) => {
       const memoInput = e.target.closest('.memo-input');
       if (memoInput) {
-        draftMemos[memoInput.dataset.id] = memoInput.value;
+        syncMemoDraft(memoInput);
         return;
       }
       const nameInput = e.target.closest('.name-input');
@@ -589,6 +606,11 @@
       const nameInput = e.target.closest('.name-input');
       if (nameInput) {
         syncNameDraft(nameInput);
+        return;
+      }
+      const memoInput = e.target.closest('.memo-input');
+      if (memoInput) {
+        syncMemoDraft(memoInput);
       }
     });
 
@@ -596,13 +618,24 @@
       const nameInput = e.target.closest('.name-input');
       if (nameInput) {
         syncNameDraft(nameInput);
+        return;
+      }
+      const memoInput = e.target.closest('.memo-input');
+      if (memoInput) {
+        syncMemoDraft(memoInput);
       }
     }, true);
 
     listEl.addEventListener('pointerdown', (e) => {
-      const btn = e.target.closest('button[data-action="name-save"]');
-      if (!btn) return;
-      syncNameDraft(getNameInputForButton(btn));
+      const nameBtn = e.target.closest('button[data-action="name-save"]');
+      if (nameBtn) {
+        syncNameDraft(getNameInputForButton(nameBtn));
+        return;
+      }
+      const memoBtn = e.target.closest('button[data-action="memo-save"]');
+      if (memoBtn) {
+        syncMemoDraft(getMemoInputForButton(memoBtn));
+      }
     });
 
     listEl.addEventListener('click', (e) => {
@@ -622,8 +655,12 @@
         return;
       }
       if (action === 'memo-save') {
-        const input = listEl.querySelector(`.memo-input[data-id="${CSS.escape(id)}"]`);
-        const text = (input?.value ?? draftMemos[id] ?? '').trim();
+        const input = getMemoInputForButton(btn);
+        const text = readMemoValue(id, input);
+        if (!text) {
+          errorEl.textContent = '메모 내용을 입력해 주세요.';
+          return;
+        }
         act(id, 'memo', { text });
         return;
       }

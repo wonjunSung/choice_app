@@ -16,16 +16,7 @@ const ROWS = [
   ['r2-1', 'r2-2', 'r2-3', 'r2-4'],
 ];
 
-const DEFAULT_NAMES = {
-  'r1-1': '항목1',
-  'r1-2': '항목2',
-  'r1-3': '항목3',
-  'r1-4': '항목4',
-  'r2-1': '항목5',
-  'r2-2': '항목6',
-  'r2-3': '항목7',
-  'r2-4': '항목8',
-};
+const DEFAULT_NAME = '';
 
 const CONFESSION_IDS = new Set(['r1-3', 'r1-4']);
 const ITEMS = ROWS.flat();
@@ -35,7 +26,7 @@ const IN_USE = '상담중';
 
 function createDefaultItem(id) {
   return {
-    name: DEFAULT_NAMES[id],
+    name: DEFAULT_NAME,
     status: AVAILABLE,
     startedAt: null,
     count: 0,
@@ -80,7 +71,7 @@ function loadPersistedState() {
       if (!savedItem) continue;
       items[id] = {
         ...createDefaultItem(id),
-        name: String(savedItem.name ?? DEFAULT_NAMES[id]).trim() || DEFAULT_NAMES[id],
+        name: String(savedItem.name ?? '').trim(),
         status: savedItem.status === IN_USE ? IN_USE : AVAILABLE,
         startedAt: savedItem.startedAt ?? null,
         count: Math.max(0, Number(savedItem.count) || 0),

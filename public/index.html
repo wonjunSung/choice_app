@@ -383,6 +383,23 @@
       );
     }
 
+    function syncNameDraft(input) {
+      if (!input) return;
+      draftNames[input.dataset.id] = input.value;
+    }
+
+    function getNameInputForButton(btn) {
+      return btn.closest('.name-row')?.querySelector('.name-input') ?? null;
+    }
+
+    function readNameValue(id, input) {
+      const value = (input?.value ?? draftNames[id] ?? '').trim();
+      if (value) {
+        draftNames[id] = value;
+      }
+      return value;
+    }
+
     function applyState(next) {
       vibrateOnComplete(next.items);
       rememberStatuses(next.items);
@@ -564,8 +581,28 @@
       }
       const nameInput = e.target.closest('.name-input');
       if (nameInput) {
-        draftNames[nameInput.dataset.id] = nameInput.value;
+        syncNameDraft(nameInput);
       }
+    });
+
+    listEl.addEventListener('compositionend', (e) => {
+      const nameInput = e.target.closest('.name-input');
+      if (nameInput) {
+        syncNameDraft(nameInput);
+      }
+    });
+
+    listEl.addEventListener('blur', (e) => {
+      const nameInput = e.target.closest('.name-input');
+      if (nameInput) {
+        syncNameDraft(nameInput);
+      }
+    }, true);
+
+    listEl.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('button[data-action="name-save"]');
+      if (!btn) return;
+      syncNameDraft(getNameInputForButton(btn));
     });
 
     listEl.addEventListener('click', (e) => {
@@ -575,8 +612,12 @@
       const action = btn.dataset.action;
 
       if (action === 'name-save') {
-        const input = listEl.querySelector(`.name-input[data-id="${CSS.escape(id)}"]`);
-        const name = (input?.value ?? draftNames[id] ?? '').trim();
+        const input = getNameInputForButton(btn);
+        const name = readNameValue(id, input);
+        if (!name) {
+          errorEl.textContent = '이름을 입력해 주세요.';
+          return;
+        }
         act(id, 'name', { name });
         return;
       }

@@ -24,6 +24,11 @@ const ITEMS = ROWS.flat();
 const AVAILABLE = '상담가능';
 const IN_USE = '상담중';
 
+const globalStats = {
+  chaesuCount: null,
+  completedTotal: 0,
+};
+
 function createDefaultItem(id) {
   return {
     name: DEFAULT_NAME,
@@ -41,9 +46,14 @@ function ensureItem(id) {
   return Object.prototype.hasOwnProperty.call(items, id);
 }
 
+function sumItemCounts() {
+  return ITEMS.reduce((sum, id) => sum + items[id].count, 0);
+}
+
 function persistState() {
   try {
     const payload = {
+      global: globalStats,
       items: ITEMS.reduce((acc, id) => {
         acc[id] = {
           name: items[id].name,
@@ -65,6 +75,16 @@ function loadPersistedState() {
   try {
     if (!fs.existsSync(DATA_FILE)) return;
     const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    if (saved.global) {
+      const rawChaesu = saved.global.chaesuCount;
+      globalStats.chaesuCount =
+        rawChaesu === null || rawChaesu === undefined || rawChaesu === ''
+          ? null
+          : Math.max(0, Number(rawChaesu) || 0);
+      globalStats.completedTotal = Math.max(0, Number(saved.global.completedTotal) || 0);
+    } else {
+      globalStats.completedTotal = sumItemCounts();
+    }
     if (!saved.items) return;
     for (const id of ITEMS) {
       const savedItem = saved.items[id];
@@ -85,12 +105,15 @@ function loadPersistedState() {
 
 loadPersistedState();
 
-function totalCount() {
-  return ITEMS.reduce((sum, id) => sum + items[id].count, 0);
-}
-
 function snapshot() {
-  return { rows: ROWS, items, memoMax: MEMO_MAX, nameMax: NAME_MAX, totalCount: totalCount() };
+  return {
+    rows: ROWS,
+    items,
+    global: globalStats,
+    memoMax: MEMO_MAX,
+    nameMax: NAME_MAX,
+    totalCount: globalStats.completedTotal,
+  };
 }
 
 function mutate(res, fn) {
@@ -131,6 +154,7 @@ app.post('/api/items/:id/return', (req, res) => {
     item.status = AVAILABLE;
     item.startedAt = null;
     item.count += 1;
+    globalStats.completedTotal += 1;
   });
 });
 
@@ -193,6 +217,34 @@ app.post('/api/items/:id/memo/reset', (req, res) => {
   }
   mutate(res, () => {
     items[id].memo = '';
+  });
+});
+
+app.post('/api/global/chaesu-count', (req, res) => {
+  const raw = String(req.body?.count ?? '').trim();
+  if (!raw) {
+    return res.status(400).json({ error: '인원을 입력해 주세요.', ...snapshot() });
+  }
+  if (!/^\d+$/.test(raw)) {
+    return res.status(400).json({ error: '인원은 0 이상의 숫자만 입력할 수 있습니다.', ...snapshot() });
+  }
+  const count = Number(raw);
+  mutate(res, () => {
+    globalStats.chaesuCount = count;
+  });
+});
+
+app.post('/api/global/completed/count', (req, res) => {
+  const delta = Number(req.body?.delta);
+  if (delta !== 1 && delta !== -1) {
+    return res.status(400).json({ error: '인원은 +1 또는 -1만 가능합니다.', ...snapshot() });
+  }
+  const next = globalStats.completedTotal + delta;
+  if (next < 0) {
+    return res.status(400).json({ error: '인원은 0명 미만으로 줄일 수 없습니다.', ...snapshot() });
+  }
+  mutate(res, () => {
+    globalStats.completedTotal = next;
   });
 });
 

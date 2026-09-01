@@ -48,10 +48,11 @@
       font-size: 1.5rem;
     }
 
-    .sub {
-      margin: 0 0 12px;
-      color: var(--muted);
-      font-size: 0.92rem;
+    .summary-boxes {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
     }
 
     .total-box {
@@ -59,7 +60,6 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 20px;
       padding: 14px 16px;
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -69,6 +69,16 @@
     .total-label {
       color: var(--muted);
       font-size: 0.92rem;
+      flex-shrink: 0;
+    }
+
+    .total-side {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
     }
 
     .total-value {
@@ -76,6 +86,51 @@
       font-weight: 700;
       color: var(--available);
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .total-edit-row {
+      width: 100%;
+      max-width: 220px;
+      margin-left: auto;
+    }
+
+    .chaesu-input {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--input-bg);
+    }
+
+    .chaesu-input:focus {
+      outline: 2px solid var(--focus);
+      border-color: var(--available);
+    }
+
+    button.summary-btn {
+      width: auto;
+      min-width: 72px;
+      padding: 7px 10px;
+      font-size: 0.8rem;
+      background: #334155;
+      color: #fff;
+    }
+
+    .total-side .count-controls {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .sub {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 0.92rem;
     }
 
     .rows {
@@ -333,10 +388,7 @@
   <main>
     <h1>선택 뒷봉 현황</h1>
     <p class="sub">항목을 눌러 상담시작·상담완료하세요. 화면은 자동으로 갱신됩니다.</p>
-    <div class="total-box">
-      <span class="total-label">총 완료인원</span>
-      <span class="total-value" id="totalCount">0명</span>
-    </div>
+    <div class="summary-boxes" id="summaryBoxes"></div>
     <div class="rows" id="list"></div>
     <p class="error" id="error"></p>
     <p class="footer">상태 저장소: 서버 메모리 (재시작 시 초기화될 수 있음) · 메모 최대 100자</p>
@@ -344,7 +396,7 @@
 
   <script>
     const listEl = document.getElementById('list');
-    const totalCountEl = document.getElementById('totalCount');
+    const summaryBoxesEl = document.getElementById('summaryBoxes');
     const errorEl = document.getElementById('error');
     let busy = false;
     let prevStatuses = null;
@@ -353,7 +405,9 @@
     const draftNames = {};
     const editingNames = new Set();
     const editingMemos = new Set();
+    let isEditingChaesu = false;
     const timerAnchors = {};
+    let draftChaesuCount = null;
 
     function escapeHtml(text) {
       return String(text)
@@ -461,11 +515,87 @@
       return value;
     }
 
+    function hasSavedChaesu(global) {
+      return global && global.chaesuCount !== null && global.chaesuCount !== undefined;
+    }
+
+    function readChaesuValue(input) {
+      const value = (input?.value ?? draftChaesuCount ?? '').trim();
+      if (value) {
+        draftChaesuCount = value;
+      }
+      return value;
+    }
+
+    function renderSummary() {
+      if (!state?.global) return;
+      const global = state.global;
+      const hasChaesu = hasSavedChaesu(global);
+      const showChaesuEdit = isEditingChaesu || !hasChaesu;
+      const chaesuButtonLabel = hasChaesu ? '인원변경' : '인원입력';
+      const active = document.activeElement;
+      const focusedChaesu = active?.classList.contains('chaesu-input');
+      const chaesuDraft = focusedChaesu
+        ? active.value
+        : (draftChaesuCount ?? (hasChaesu ? String(global.chaesuCount) : ''));
+
+      let chaesuSideHtml = '';
+      if (showChaesuEdit) {
+        chaesuSideHtml = `
+          <div class="total-side total-edit-row">
+            <input
+              class="chaesu-input"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              placeholder="인원"
+              value="${escapeHtml(chaesuDraft)}"
+            />
+            <button type="button" class="summary-btn" data-scope="global" data-action="chaesu-save">${chaesuButtonLabel}</button>
+          </div>
+        `;
+      } else {
+        chaesuSideHtml = `
+          <div class="total-side">
+            <span class="total-value">${global.chaesuCount}명</span>
+            <button type="button" class="summary-btn" data-scope="global" data-action="chaesu-edit">인원변경</button>
+          </div>
+        `;
+      }
+
+      summaryBoxesEl.innerHTML = `
+        <div class="total-box">
+          <span class="total-label">차수 총인원</span>
+          ${chaesuSideHtml}
+        </div>
+        <div class="total-box">
+          <span class="total-label">총 완료인원</span>
+          <div class="total-side">
+            <span class="total-value">${state.totalCount ?? 0}명</span>
+            <div class="count-controls">
+              <button type="button" class="count-btn" data-scope="global" data-action="completed-down" aria-label="인원 감소">−</button>
+              <button type="button" class="count-btn" data-scope="global" data-action="completed-up" aria-label="인원 증가">+</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (focusedChaesu) {
+        const input = summaryBoxesEl.querySelector('.chaesu-input');
+        if (input) {
+          input.focus();
+          const len = input.value.length;
+          input.setSelectionRange(len, len);
+        }
+      }
+    }
+
     function applyState(next) {
       vibrateOnComplete(next.items);
       syncTimerAnchors(next.items);
       rememberStatuses(next.items);
       state = next;
+      renderSummary();
       render();
     }
 
@@ -486,7 +616,6 @@
       const focusedMemoValue = focusedMemoId ? active.value : null;
       const focusedNameValue = focusedNameId ? active.value : null;
 
-      totalCountEl.textContent = `${state.totalCount ?? 0}명`;
       listEl.innerHTML = '';
 
       state.rows.forEach((rowIds) => {
@@ -626,6 +755,35 @@
       }
     }
 
+    async function globalAct(path, body, meta = {}) {
+      if (busy) return;
+      busy = true;
+      errorEl.textContent = '';
+      try {
+        const res = await fetch(`/api/global/${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = data.error || '요청에 실패했습니다.';
+          if (data.global) applyState(data);
+          return;
+        }
+        if (path === 'chaesu-count') {
+          draftChaesuCount = null;
+          isEditingChaesu = false;
+          alert(meta.hadChaesu ? '인원이 변경되었습니다.' : '인원이 입력되었습니다.');
+        }
+        applyState(data);
+      } catch (e) {
+        errorEl.textContent = '요청에 실패했습니다.';
+      } finally {
+        busy = false;
+      }
+    }
+
     async function act(id, action, body, meta = {}) {
       if (busy) return;
       busy = true;
@@ -666,6 +824,59 @@
         busy = false;
       }
     }
+
+    summaryBoxesEl.addEventListener('input', (e) => {
+      const input = e.target.closest('.chaesu-input');
+      if (input) {
+        draftChaesuCount = input.value;
+      }
+    });
+
+    summaryBoxesEl.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('button[data-action="chaesu-save"]');
+      if (!btn) return;
+      const input = summaryBoxesEl.querySelector('.chaesu-input');
+      if (input) {
+        draftChaesuCount = input.value;
+      }
+    });
+
+    summaryBoxesEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-scope="global"]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+
+      if (action === 'chaesu-edit') {
+        isEditingChaesu = true;
+        renderSummary();
+        return;
+      }
+      if (action === 'chaesu-save') {
+        const input = summaryBoxesEl.querySelector('.chaesu-input');
+        const count = readChaesuValue(input);
+        if (!count) {
+          errorEl.textContent = '인원을 입력해 주세요.';
+          return;
+        }
+        if (!/^\d+$/.test(count)) {
+          errorEl.textContent = '인원은 0 이상의 숫자만 입력할 수 있습니다.';
+          return;
+        }
+        const hadChaesu = hasSavedChaesu(state.global);
+        globalAct('chaesu-count', { count }, { hadChaesu });
+        return;
+      }
+      if (action === 'completed-up') {
+        if (!confirm('인원 추가를 하시겠습니까?')) return;
+        globalAct('completed/count', { delta: 1 });
+        return;
+      }
+      if (action === 'completed-down') {
+        if (!confirm('인원 차감을 하시겠습니까?')) return;
+        globalAct('completed/count', { delta: -1 });
+        return;
+      }
+    });
 
     listEl.addEventListener('input', (e) => {
       const memoInput = e.target.closest('.memo-input');

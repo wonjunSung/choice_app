@@ -4,35 +4,45 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MEMO_MAX = 100;
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+const NAME_MAX = 30;
 
 const ROWS = [
-  ['차수신부님', '선택신부님', '고해1', '고해2'],
-  ['차수수녀님', '선택수녀님', '큰부부님', '작은부부님'],
+  ['r1-1', 'r1-2', 'r1-3', 'r1-4'],
+  ['r2-1', 'r2-2', 'r2-3', 'r2-4'],
 ];
 
-const NO_TIMER = new Set(['고해1', '고해2']);
+const DEFAULT_NAMES = {
+  'r1-1': '차수신부님',
+  'r1-2': '선택신부님',
+  'r1-3': '고해1',
+  'r1-4': '고해2',
+  'r2-1': '차수수녀님',
+  'r2-2': '선택수녀님',
+  'r2-3': '큰부부님',
+  'r2-4': '작은부부님',
+};
+
+const CONFESSION_IDS = new Set(['r1-3', 'r1-4']);
 const ITEMS = ROWS.flat();
 
-function labels(showTimer) {
-  return showTimer
-    ? { available: '상담가능', inUse: '상담중' }
-    : { available: '고해가능', inUse: '고해중' };
+function labels(isConfession) {
+  return isConfession
+    ? { available: '고해가능', inUse: '고해중' }
+    : { available: '상담가능', inUse: '상담중' };
 }
 
 const items = Object.fromEntries(
   ITEMS.map((id) => {
-    const showTimer = !NO_TIMER.has(id);
-    const { available } = labels(showTimer);
+    const isConfession = CONFESSION_IDS.has(id);
+    const { available } = labels(isConfession);
     return [
       id,
       {
+        name: DEFAULT_NAMES[id],
         status: available,
         startedAt: null,
         count: 0,
-        showTimer,
+        isConfession,
         memo: '',
       },
     ];
@@ -43,8 +53,12 @@ function ensureItem(id) {
   return Object.prototype.hasOwnProperty.call(items, id);
 }
 
+function totalCount() {
+  return ITEMS.reduce((sum, id) => sum + items[id].count, 0);
+}
+
 function snapshot() {
-  return { rows: ROWS, items, memoMax: MEMO_MAX };
+  return { rows: ROWS, items, memoMax: MEMO_MAX, nameMax: NAME_MAX, totalCount: totalCount() };
 }
 
 app.get('/api/status', (_req, res) => {
@@ -57,7 +71,7 @@ app.post('/api/items/:id/use', (req, res) => {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
   const item = items[id];
-  const { available, inUse } = labels(item.showTimer);
+  const { available, inUse } = labels(item.isConfession);
   if (item.status !== available) {
     return res.status(400).json({ error: '이미 이용중입니다.', ...snapshot() });
   }
@@ -72,7 +86,7 @@ app.post('/api/items/:id/return', (req, res) => {
     return res.status(404).json({ error: '항목이 없습니다.' });
   }
   const item = items[id];
-  const { available, inUse } = labels(item.showTimer);
+  const { available, inUse } = labels(item.isConfession);
   if (item.status !== inUse) {
     return res.status(400).json({ error: '이용중이 아닙니다.', ...snapshot() });
   }
@@ -96,6 +110,22 @@ app.post('/api/items/:id/count', (req, res) => {
     return res.status(400).json({ error: '인원은 0명 미만으로 줄일 수 없습니다.', ...snapshot() });
   }
   items[id].count = next;
+  res.json(snapshot());
+});
+
+app.post('/api/items/:id/name', (req, res) => {
+  const { id } = req.params;
+  if (!ensureItem(id)) {
+    return res.status(404).json({ error: '항목이 없습니다.' });
+  }
+  const name = String(req.body?.name ?? '').trim();
+  if (!name) {
+    return res.status(400).json({ error: '이름을 입력해 주세요.', ...snapshot() });
+  }
+  if (name.length > NAME_MAX) {
+    return res.status(400).json({ error: `이름은 ${NAME_MAX}자까지 가능합니다.`, ...snapshot() });
+  }
+  items[id].name = name;
   res.json(snapshot());
 });
 

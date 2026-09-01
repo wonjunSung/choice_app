@@ -49,9 +49,33 @@
     }
 
     .sub {
-      margin: 0 0 20px;
+      margin: 0 0 12px;
       color: var(--muted);
       font-size: 0.92rem;
+    }
+
+    .total-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+    }
+
+    .total-label {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .total-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--available);
+      font-variant-numeric: tabular-nums;
     }
 
     .rows {
@@ -74,14 +98,39 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      min-height: 180px;
+      min-height: 200px;
     }
 
-    .item-id {
-      font-size: 1rem;
+    .name-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .name-input {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 0.9rem;
       font-weight: 700;
-      line-height: 1.3;
-      word-break: keep-all;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--input-bg);
+    }
+
+    .name-input:focus {
+      outline: 2px solid var(--focus);
+      border-color: var(--available);
+    }
+
+    button.name-save {
+      width: auto;
+      min-width: 64px;
+      padding: 7px 10px;
+      font-size: 0.8rem;
+      background: #334155;
+      color: #fff;
     }
 
     .badge-row {
@@ -259,8 +308,8 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
-      .item-id {
-        font-size: 0.95rem;
+      .name-input {
+        font-size: 0.85rem;
       }
     }
   </style>
@@ -269,6 +318,10 @@
   <main>
     <h1>선택 뒷봉 현황</h1>
     <p class="sub">항목을 눌러 상담시작·상담완료하세요. 화면은 자동으로 갱신됩니다.</p>
+    <div class="total-box">
+      <span class="total-label">총 완료인원</span>
+      <span class="total-value" id="totalCount">0명</span>
+    </div>
     <div class="rows" id="list"></div>
     <p class="error" id="error"></p>
     <p class="footer">상태 저장소: 서버 메모리 (재시작 시 초기화될 수 있음) · 메모 최대 100자</p>
@@ -276,11 +329,13 @@
 
   <script>
     const listEl = document.getElementById('list');
+    const totalCountEl = document.getElementById('totalCount');
     const errorEl = document.getElementById('error');
     let busy = false;
     let prevStatuses = null;
     let state = null;
     const draftMemos = {};
+    const draftNames = {};
 
     function escapeHtml(text) {
       return String(text)
@@ -339,13 +394,20 @@
       if (!state) return;
       const now = Date.now();
       const memoMax = state.memoMax || 100;
+      const nameMax = state.nameMax || 30;
       const active = document.activeElement;
       const focusedMemoId =
         active && active.classList.contains('memo-input')
           ? active.getAttribute('data-id')
           : null;
-      const focusedValue = focusedMemoId ? active.value : null;
+      const focusedNameId =
+        active && active.classList.contains('name-input')
+          ? active.getAttribute('data-id')
+          : null;
+      const focusedMemoValue = focusedMemoId ? active.value : null;
+      const focusedNameValue = focusedNameId ? active.value : null;
 
+      totalCountEl.textContent = `${state.totalCount ?? 0}명`;
       listEl.innerHTML = '';
 
       state.rows.forEach((rowIds) => {
@@ -358,7 +420,7 @@
           const available = isAvailable(item.status);
           const card = document.createElement('div');
           card.className = 'item';
-          const countLabel = item.showTimer ? '상담완료' : '고해완료';
+          const nameDraft = focusedNameId === id ? focusedNameValue : (draftNames[id] ?? item.name);
 
           let elapsedHtml = '';
           if (!available && item.startedAt) {
@@ -368,7 +430,7 @@
           const statsHtml = `
             <div class="stats">
               <div class="count-box">
-                <span class="count">${countLabel} : ${item.count}명</span>
+                <span class="count">상담완료 : ${item.count}명</span>
                 <div class="count-controls">
                   <button type="button" class="count-btn" data-id="${escapeHtml(id)}" data-action="count-down" aria-label="인원 감소">−</button>
                   <button type="button" class="count-btn" data-id="${escapeHtml(id)}" data-action="count-up" aria-label="인원 증가">+</button>
@@ -377,10 +439,7 @@
             </div>
           `;
 
-          const startLabel = item.showTimer ? '상담시작' : '고해시작';
-          const endLabel = item.showTimer ? '상담완료' : '고해완료';
           const hasMemo = Boolean(item.memo && item.memo.trim());
-
           let memoHtml = '';
           if (hasMemo) {
             memoHtml = `
@@ -392,7 +451,7 @@
               </div>
             `;
           } else {
-            const draft = focusedMemoId === id ? focusedValue : (draftMemos[id] ?? '');
+            const draft = focusedMemoId === id ? focusedMemoValue : (draftMemos[id] ?? '');
             memoHtml = `
               <div class="memo">
                 <input
@@ -411,7 +470,16 @@
           }
 
           card.innerHTML = `
-            <div class="item-id">${escapeHtml(id)}</div>
+            <div class="name-row">
+              <input
+                class="name-input"
+                type="text"
+                maxlength="${nameMax}"
+                data-id="${escapeHtml(id)}"
+                value="${escapeHtml(nameDraft)}"
+              />
+              <button type="button" class="name-save" data-id="${escapeHtml(id)}" data-action="name-save">이름저장</button>
+            </div>
             <div class="badge-row">
               <span class="badge ${available ? 'available' : 'busy'}">${escapeHtml(item.status)}</span>
               ${elapsedHtml}
@@ -420,7 +488,7 @@
             ${memoHtml}
             <div class="item-actions">
               <button type="button" class="${available ? 'use' : 'return'}" data-id="${escapeHtml(id)}" data-action="${available ? 'use' : 'return'}">
-                ${available ? startLabel : endLabel}
+                ${available ? '상담시작' : '상담완료'}
               </button>
             </div>
           `;
@@ -432,6 +500,13 @@
 
       if (focusedMemoId) {
         const input = listEl.querySelector(`.memo-input[data-id="${CSS.escape(focusedMemoId)}"]`);
+        if (input) {
+          input.focus();
+          const len = input.value.length;
+          input.setSelectionRange(len, len);
+        }
+      } else if (focusedNameId) {
+        const input = listEl.querySelector(`.name-input[data-id="${CSS.escape(focusedNameId)}"]`);
         if (input) {
           input.focus();
           const len = input.value.length;
@@ -470,6 +545,9 @@
         if (action === 'memo' || action === 'memo/reset') {
           delete draftMemos[id];
         }
+        if (action === 'name') {
+          delete draftNames[id];
+        }
         applyState(data);
       } catch (e) {
         errorEl.textContent = '요청에 실패했습니다.';
@@ -479,9 +557,15 @@
     }
 
     listEl.addEventListener('input', (e) => {
-      const input = e.target.closest('.memo-input');
-      if (!input) return;
-      draftMemos[input.dataset.id] = input.value;
+      const memoInput = e.target.closest('.memo-input');
+      if (memoInput) {
+        draftMemos[memoInput.dataset.id] = memoInput.value;
+        return;
+      }
+      const nameInput = e.target.closest('.name-input');
+      if (nameInput) {
+        draftNames[nameInput.dataset.id] = nameInput.value;
+      }
     });
 
     listEl.addEventListener('click', (e) => {
@@ -490,6 +574,12 @@
       const id = btn.dataset.id;
       const action = btn.dataset.action;
 
+      if (action === 'name-save') {
+        const input = listEl.querySelector(`.name-input[data-id="${CSS.escape(id)}"]`);
+        const name = (input?.value ?? draftNames[id] ?? '').trim();
+        act(id, 'name', { name });
+        return;
+      }
       if (action === 'memo-save') {
         const input = listEl.querySelector(`.memo-input[data-id="${CSS.escape(id)}"]`);
         const text = (input?.value ?? draftMemos[id] ?? '').trim();
@@ -511,12 +601,11 @@
         act(id, 'count', { delta: -1 });
         return;
       }
+      if (action === 'use') {
+        if (!confirm('상담시작을 하시겠습니까?')) return;
+      }
       if (action === 'return') {
-        const item = state?.items?.[id];
-        const message = item?.showTimer
-          ? '상담완료를 하시겠습니까?'
-          : '고해완료를 하시겠습니까?';
-        if (!confirm(message)) return;
+        if (!confirm('상담완료를 하시겠습니까?')) return;
       }
       act(id, action);
     });

@@ -168,11 +168,13 @@ app.post('/api/items/:id/count', (req, res) => {
     return res.status(400).json({ error: '인원은 +1 또는 -1만 가능합니다.', ...snapshot() });
   }
   const next = items[id].count + delta;
-  if (next < 0) {
+  const nextTotal = globalStats.completedTotal + delta;
+  if (next < 0 || nextTotal < 0) {
     return res.status(400).json({ error: '인원은 0명 미만으로 줄일 수 없습니다.', ...snapshot() });
   }
   mutate(res, () => {
     items[id].count = next;
+    globalStats.completedTotal = nextTotal;
   });
 });
 

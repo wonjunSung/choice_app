@@ -349,8 +349,7 @@
       color: #1a1208;
     }
 
-    button.memo-save,
-    button.memo-edit {
+    button.memo-save {
       background: #3b82f6;
       color: #fff;
     }
@@ -404,10 +403,12 @@
     const draftMemos = {};
     const draftNames = {};
     const editingNames = new Set();
-    const editingMemos = new Set();
     let isEditingChaesu = false;
     const timerAnchors = {};
     let draftChaesuCount = null;
+    let lastSnapshotJson = '';
+    let isComposing = false;
+    let pendingState = null;
 
     function escapeHtml(text) {
       return String(text)
@@ -590,13 +591,31 @@
       }
     }
 
-    function applyState(next) {
+    function applyState(next, options = {}) {
+      const force = options.force === true;
+      const json = JSON.stringify(next);
+      if (!force && json === lastSnapshotJson) {
+        return;
+      }
+      if (isComposing && !force) {
+        pendingState = next;
+        return;
+      }
+      lastSnapshotJson = json;
+      pendingState = null;
       vibrateOnComplete(next.items);
       syncTimerAnchors(next.items);
       rememberStatuses(next.items);
       state = next;
       renderSummary();
       render();
+    }
+
+    function flushPendingState() {
+      if (!pendingState) return;
+      const next = pendingState;
+      pendingState = null;
+      applyState(next);
     }
 
     function render() {
@@ -676,21 +695,9 @@
           `;
 
           const hasMemo = hasSavedMemo(item);
-          const isEditingMemo = editingMemos.has(id) || !hasMemo;
           const memoButtonLabel = hasMemo ? '메모변경' : '메모입력';
-          let memoHtml = '';
-          if (hasMemo && !isEditingMemo) {
-            memoHtml = `
-              <div class="memo">
-                <div class="memo-text">${escapeHtml(item.memo)}</div>
-                <div class="memo-actions">
-                  <button type="button" class="memo-edit" data-id="${escapeHtml(id)}" data-action="memo-edit">메모변경</button>
-                </div>
-              </div>
-            `;
-          } else {
-            const draft = focusedMemoId === id ? focusedMemoValue : (draftMemos[id] ?? item.memo);
-            memoHtml = `
+          const memoDraft = focusedMemoId === id ? focusedMemoValue : (draftMemos[id] ?? item.memo ?? '');
+          const memoHtml = `
               <div class="memo">
                 <input
                   class="memo-input"
@@ -698,14 +705,13 @@
                   maxlength="${memoMax}"
                   placeholder="메모 ${memoMax}자"
                   data-id="${escapeHtml(id)}"
-                  value="${escapeHtml(draft)}"
+                  value="${escapeHtml(memoDraft)}"
                 />
                 <div class="memo-actions">
                   <button type="button" class="memo-save" data-id="${escapeHtml(id)}" data-action="memo-save">${memoButtonLabel}</button>
                 </div>
               </div>
             `;
-          }
 
           card.innerHTML = `
             ${nameHtml}
@@ -802,12 +808,10 @@
         }
         if (action === 'memo') {
           delete draftMemos[id];
-          editingMemos.delete(id);
           alert(meta.hadMemo ? '메모가 변경되었습니다.' : '메모가 입력되었습니다.');
         }
         if (action === 'memo/reset') {
           delete draftMemos[id];
-          editingMemos.delete(id);
         }
         if (action === 'name') {
           delete draftNames[id];
@@ -890,16 +894,23 @@
       }
     });
 
+    listEl.addEventListener('compositionstart', () => {
+      isComposing = true;
+    });
+
     listEl.addEventListener('compositionend', (e) => {
+      isComposing = false;
       const nameInput = e.target.closest('.name-input');
       if (nameInput) {
         syncNameDraft(nameInput);
+        flushPendingState();
         return;
       }
       const memoInput = e.target.closest('.memo-input');
       if (memoInput) {
         syncMemoDraft(memoInput);
       }
+      flushPendingState();
     });
 
     listEl.addEventListener('blur', (e) => {
@@ -946,11 +957,6 @@
         }
         const hadName = hasSavedName(state.items[id]);
         act(id, 'name', { name }, { hadName });
-        return;
-      }
-      if (action === 'memo-edit') {
-        editingMemos.add(id);
-        render();
         return;
       }
       if (action === 'memo-save') {
